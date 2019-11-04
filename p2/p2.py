@@ -1,5 +1,6 @@
 import numpy as np
 import scipy.optimize as opt
+from scipy.io import loadmat
 from pandas.io.parsers import read_csv
 from sklearn.preprocessing import PolynomialFeatures
 
@@ -122,7 +123,9 @@ def gradiente_reg(Theta, X, Y, Lambda):
     m = np.shape(X)[0]
     Aux = X.T @ (g(X @ Theta) - Y)
     Grad = Aux / m
-    Grad = Grad + (Lambda / m) * Theta
+    theta_aux = Theta
+    theta_aux[0] = 0.0
+    Grad = Grad + (Lambda / m) * theta_aux
     return Grad
 
 def plot_decisionboundary(Theta, X, Y, poly):
