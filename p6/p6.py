@@ -5,6 +5,11 @@ import warnings
 from sklearn import svm
 warnings.filterwarnings('ignore')
 
+import re
+import nltk
+import nltk.stem.porter
+import codecs
+
 # Plot functions ----------------
 
 def plot_data(X, y, title):
@@ -44,6 +49,76 @@ def visualizeBoundry(X, y, model, sigma, title):
     plot_data(X, y, title)
 
 # ------------------------------
+
+# Proceso de emails ------------
+
+def preProcess(email):
+    
+    hdrstart = email.find("\n\n")
+    if hdrstart != -1:
+        email = email[hdrstart:]
+
+    email = email.lower()
+    # Strip html tags. replace with a space
+    email = re.sub('<[^<>]+>', ' ', email)
+    # Any numbers get replaced with the string 'number'
+    email = re.sub('[0-9]+', 'number', email)
+    # Anything starting with http or https:// replaced with 'httpaddr'
+    email = re.sub('(http|https)://[^\s]*', 'httpaddr', email)
+    # Strings with "@" in the middle are considered emails --> 'emailaddr'
+    email = re.sub('[^\s]+@[^\s]+', 'emailaddr', email)
+    # The '$' sign gets replaced with 'dollar'
+    email = re.sub('[$]+', 'dollar', email)
+    return email
+
+
+def email2TokenList(raw_email):
+    """
+    Function that takes in a raw email, preprocesses it, tokenizes it,
+    stems each word, and returns a list of tokens in the e-mail
+    """
+
+    stemmer = nltk.stem.porter.PorterStemmer()
+    email = preProcess(raw_email)
+
+    # Split the e-mail into individual words (tokens) 
+    tokens = re.split('[ \@\$\/\#\.\-\:\&\*\+\=\[\]\?\!\(\)\{\}\,\'\"\>\_\<\;\%]',
+                      email)
+
+    # Loop over each token and use a stemmer to shorten it
+    tokenlist = []
+    for token in tokens:
+
+        token = re.sub('[^a-zA-Z0-9]', '', token)
+        stemmed = stemmer.stem(token)
+        #Throw out empty tokens
+        if not len(token):
+            continue
+        # Store a list of all unique stemmed words
+        tokenlist.append(stemmed)
+
+    return tokenlist
+
+def getVocabDict(reverse=False):
+    """
+    Function to read in the supplied vocab list text file into a dictionary.
+    Dictionary key is the stemmed word, value is the index in the text file
+    If "reverse", the keys and values are switched.
+    """
+    vocab_dict = {}
+    with open("vocab.txt") as f:
+        for line in f:
+            (val, key) = line.split()
+            if not reverse:
+                vocab_dict[key] = int(val)
+            else:
+                vocab_dict[int(val)] = key
+
+    return vocab_dict
+
+# ------------------------------
+
+# Parte 1 ----------------------
 
 def gaussianKernel(X1, X2, sigma):
     result = np.zeros((X1.shape[0], X2.shape[0]))
@@ -120,4 +195,40 @@ def part_one():
     print("Tercer dataset (ex6data3.mat). Puede tardar unos minutos...")
     third_dataset()
 
-part_one()
+# ------------------------------
+
+# Parte 2 ----------------------
+
+def tokenList2wordIndices(token_list, vocab_dict):
+    word_indices = []
+
+    for token in token_list:
+        if token in vocab_dict:
+            idx = vocab_dict[token]
+            word_indices.append(idx)
+    
+    return word_indices
+
+
+def part_two():
+    # Ejemplo de reducir un email a sus atributos para poder
+    # clasificarlo como spam o ham mediante SVM
+
+    email_contents = codecs.open('spam/0001.txt', 'r', encoding='utf-8', errors='ignore').read()
+    email_contents = preProcess(email_contents)
+    email_token_list = email2TokenList(email_contents)
+
+    vocab_dict = getVocabDict() # 1899 elementos
+    email_word_indices = tokenList2wordIndices(email_token_list, vocab_dict)
+
+    email_attributes = np.zeros((1899,), dtype=int)
+
+    for idx in email_word_indices:
+        email_attributes[idx] = 1
+
+    print("email 'spam/0001.txt' atributtes: ")
+    print(email_attributes)
+
+# ------------------------------    
+
+part_two()

@@ -2,7 +2,6 @@ import re
 import nltk
 import nltk.stem.porter
 
-
 def preProcess(email):
     
     hdrstart = email.find("\n\n")
