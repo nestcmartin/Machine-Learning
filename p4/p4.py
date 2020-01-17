@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
+import random
 
 # Display functions ------------
 
@@ -40,7 +41,20 @@ def displayImage(im):
 def g(Z):
     return 1 / (1 + np.exp(-Z))
 
-def ht(theta1, theta2, X):
+# derivada del sigmoide de Z
+def derivative_g(Z):
+    return np.multiply(g(Z), (1 - g(Z)))
+    
+def random_weights(L_in, L_out):
+    weights = np.zeros((L_out, 1 + L_in))
+
+    for i in range(L_out):
+        for j in range(1 + L_in):
+            weights[i, j] = random.uniform(-0.12, 0.12)
+
+    return weights
+
+def forward(theta1, theta2, X):
     m = X.shape[0]
 
     z2 = X @ theta1.T # a1 = X
@@ -48,7 +62,7 @@ def ht(theta1, theta2, X):
     a2_ones = np.hstack([np.ones([m, 1]), a2])
     z3 = a2_ones @ theta2.T
     a3 = g(z3) # a3 = ht(X)
-    return a3 
+    return X, z2, a2_ones, z3, a3 
 
 def y_onehot(y, X, num_etiquetas):
     m = X.shape[0]
@@ -61,32 +75,50 @@ def y_onehot(y, X, num_etiquetas):
     return y_onehot
 
 # coste sin regularizar
-def cost(theta1, theta2, num_etiquetas, X, y, reg):
+def cost(theta1, theta2, num_etiquetas, X, y, h):
     m = X.shape[0]
     X = np.matrix(X)
     y = np.matrix(y)
-
-    h = ht(theta1, theta2, X)
 
     cost = (np.multiply(-y, np.log(h)) - np.multiply((1 - y), np.log(1 - h))).sum()
     return cost / m
 
 # coste regularizado
-def reg_cost(theta1, theta2, num_etiquetas, X, y, reg):
+def reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg):
     m = X.shape[0]
 
-    c_reg = cost(theta1, theta2, num_etiquetas, X, y, reg) + ((float(reg) / (2 * m)) 
+    c_reg = cost(theta1, theta2, num_etiquetas, X, y, h) + ((float(reg) / (2 * m)) 
             * (np.sum(np.power(theta1[:, 1:], 2)) + np.sum(np.power(theta2[:, 1:], 2)))) 
     
     return c_reg
+
+# deltas # TODO: QUE FUNCIONE 
+def deltas(theta1, theta2, a1, z2, a2, z3, h, y):
+    m = a1.shape[0] # a1 = X
+    delta1, delta2 = np.zeros(theta1.shape), np.zeros(theta2.shape)
+    z2_ones =  np.hstack([np.ones([m, 1]), z2])
+
+    d3 = h - y
+    aux = theta2.T @ d3.T
+    d2 = aux @ derivative_g(z2_ones)
+    
+    print (a1.shape)
+    delta1 += d2.T @ a1
+    delta2 += d3.T @ a2
+
+    return delta1 / m, delta2 / m
 
 # backprop devuelve el coste y el gradiente de una red neuronal de dos capas
 def backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X, y, reg):
     theta1 = np.reshape(params_rn[:num_ocultas * (num_entradas + 1)], (num_ocultas, (num_entradas + 1)))
     theta2 = np.reshape(params_rn[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1 )))
 
-    c = reg_cost(theta1, theta2, num_etiquetas, X, y, reg)
+    a1, z2, a2, z3, h = forward(theta1, theta2, X)
+
+    c = reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg)
     print(c)
+
+    delta1, delta2 = deltas(theta1, theta2, a1, z2, a2, z3, h, y)
 
 def part_one():
     Lambda = 1.0 # reg
@@ -117,8 +149,6 @@ def part_one():
 
     backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X_ones, Y_oh, Lambda)
 
-	#Lambda = 1.0
-	#Theta = np.zeros(n)
-	#oneVsAll(X_ones, Y_ravel, 10, Lambda)
+
 
 part_one()
