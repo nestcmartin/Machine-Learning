@@ -1,154 +1,124 @@
 import numpy as np
 import scipy.optimize as opt
 from scipy.io import loadmat
-from sklearn.preprocessing import PolynomialFeatures
 
 from matplotlib import cm
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
+
+import displayData as dd
+import checkNNGradients as nn
 
 import random
 
-# Display functions ------------
 
-def displayData(X):
-    num_plots = int(np.size(X, 0)**.5)
-    fig, ax = plt.subplots(num_plots, num_plots, sharex=True, sharey=True)
-    plt.subplots_adjust(left=0, wspace=0, hspace=0)
-    img_num = 0
+def show_selection(X):
+    sel = np.random.permutation(m)
+    sel = sel[:100]
+    dd.displayData(X[sel, :])
+    plt.show()
 
-    for i in range(num_plots):
-        for j in range(num_plots):
-            # Convert column vector into 20x20 pixel matrix
-            # transpose
-            img = X[img_num, :].reshape(20, 20).T
-            ax[i][j].imshow(img, cmap='Greys')
-            ax[i][j].set_axis_off()
-            img_num += 1
-
-    return (fig, ax)
-
-def displayImage(im):
-    fig2, ax2 = plt.subplots()
-    image = im.reshape(20, 20).T
-    ax2.imshow(image, cmap='gray')
-    return (fig2, ax2)
-
-# ------------------------------
-
-# sigmoide de Z
-def g(Z):
+def sigmoid(Z):
     return 1 / (1 + np.exp(-Z))
 
-# derivada del sigmoide de Z
-def derivative_g(Z):
-    return np.multiply(g(Z), (1 - g(Z)))
-    
-def random_weights(L_in, L_out):
-    weights = np.zeros((L_out, 1 + L_in))
+def sigmoid_derivative(Z):
+    return sigmoid(Z) * (1 - sigmoid(Z))
 
-    for i in range(L_out):
-        for j in range(1 + L_in):
-            weights[i, j] = random.uniform(-0.12, 0.12)
+def forward(X, theta1, theta2):
+    a1 = np.hstack([np.ones([X.shape[0], 1]), X])
+    z2 = np.dot(a1, theta1.T)
+    a2 = np.hstack([np.ones([X.shape[0], 1]), sigmoid(z2)])
+    z3 = np.dot(a2, theta2.T)
+    a3 = sigmoid(z3)
+    return a1, z2, a2, z3, a3
 
-    return weights
-
-def forward(theta1, theta2, X):
-    m = X.shape[0]
-
-    z2 = X @ theta1.T # a1 = X
-    a2 = g(z2)
-    a2_ones = np.hstack([np.ones([m, 1]), a2])
-    z3 = a2_ones @ theta2.T
-    a3 = g(z3) # a3 = ht(X)
-    return X, z2, a2_ones, z3, a3 
-
-def y_onehot(y, X, num_etiquetas):
-    m = X.shape[0]
+def y_onehot(y, num_etiquetas):
     y = y - 1
-
     y_onehot = np.zeros((m, num_etiquetas))
     for i in range(m):
         y_onehot[i][y[i]] = 1
-
     return y_onehot
 
-# coste sin regularizar
-def cost(theta1, theta2, num_etiquetas, X, y, h):
-    m = X.shape[0]
-    X = np.matrix(X)
-    y = np.matrix(y)
+def cost(X, y, num_etiquetas):
+    Y = y_onehot(y, num_etiquetas)
+    a1, z2, a2, z3, a3 = forward(X, theta1, theta2)
+    return (-Y * np.log(a3) - (1 - Y) * np.log(1 - a3)).sum() / m
 
-    cost = (np.multiply(-y, np.log(h)) - np.multiply((1 - y), np.log(1 - h))).sum()
-    return cost / m
+def cost_reg(X, y, num_etiquetas, theta1, theta2, Lambda):
+    unreg_term = cost(X, y, num_etiquetas)
+    reg_term = (Lambda / (2 * m)) * (np.sum(np.power(theta1[:, 1:], 2)) + np.sum(np.power(theta2[:, 1:], 2)))
+    return unreg_term + reg_term    
 
-# coste regularizado
-def reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg):
-    m = X.shape[0]
+def gradient(X, y, num_etiquetas, theta1, theta2):
+    Y = y_onehot(y, num_etiquetas)
+    a1, z2, a2, z3, a3 = forward(X, theta1, theta2)
+    d3 = a3 - Y
+    d2 = np.multiply((d3 @ theta2), sigmoid_derivative(z2)[:, :1])[:, 1:]
+    theta1_grad = (1 / m) * (d2.T @ a1)
+    theta2_grad = (1 / m) * (d3.T @ a2)
+    return theta1_grad, theta2_grad
 
-    c_reg = cost(theta1, theta2, num_etiquetas, X, y, h) + ((float(reg) / (2 * m)) 
-            * (np.sum(np.power(theta1[:, 1:], 2)) + np.sum(np.power(theta2[:, 1:], 2)))) 
-    
-    return c_reg
+def gradient_reg(X, y, num_etiquetas, theta1, theta2, Lambda):
+    theta1_grad, theta2_grad = gradient(X, y, num_etiquetas, theta1, theta2)
+    theta1_grad[:, 1:] = ((Lambda / m) * theta1[:, 1:]) + theta1_grad[:, 1:]
+    theta2_grad[:, 1:] = ((Lambda / m) * theta2[:, 1:]) + theta2_grad[:, 1:]
+    return theta1_grad, theta2_grad
 
-# deltas # TODO: QUE FUNCIONE 
-def deltas(theta1, theta2, a1, z2, a2, z3, h, y):
-    m = a1.shape[0] # a1 = X
-    delta1, delta2 = np.zeros(theta1.shape), np.zeros(theta2.shape)
-    z2_ones =  np.hstack([np.ones([m, 1]), z2])
-
-    d3 = h - y
-    aux = theta2.T @ d3.T
-    d2 = aux @ derivative_g(z2_ones)
-    
-    print (a1.shape)
-    delta1 += d2.T @ a1
-    delta2 += d3.T @ a2
-
-    return delta1 / m, delta2 / m
-
-# backprop devuelve el coste y el gradiente de una red neuronal de dos capas
 def backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X, y, reg):
     theta1 = np.reshape(params_rn[:num_ocultas * (num_entradas + 1)], (num_ocultas, (num_entradas + 1)))
     theta2 = np.reshape(params_rn[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1 )))
+    J = cost_reg(X, y, num_etiquetas, theta1, theta2, Lambda)
+    theta1_grad, theta2_grad = gradient_reg(X, y, num_etiquetas, theta1, theta2, Lambda)
+    return (J, theta1_grad, theta2_grad)
 
-    a1, z2, a2, z3, h = forward(theta1, theta2, X)
+def randomize_weights(L_in, L_out):
+    #e_ini = math.sqrt(6) / math.sqrt(L_in + L_out)
+    e_ini = 0.12
+    weights = np.zeros((L_out, 1 + L_in))
+    for i in range(L_out):
+        for j in range(1 + L_in):
+            weights[i,j] = random.uniform(-e_ini, e_ini)
+    return weights
 
-    c = reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg)
-    print(c)
+def optimize(backprop, params_rn, num_entradas, num_ocultas, num_etiquetas, X, y, Lambda):
+    fmin = opt.minimize(fun=backprop, x0=params_rn, args=(num_entradas, num_ocultas, num_etiquetas, X, y, Lambda), method='TNC', jac=True, options={'maxiter': 70})
+    return fmin.x
 
-    delta1, delta2 = deltas(theta1, theta2, a1, z2, a2, z3, h, y)
+def predict(X):
+    predictions = np.zeros(X.shape[0])
+    for i in range(X.shape[0]):
+        predictions[i] = np.argmax(X[i, :]) + 1
+    return predictions
 
-def part_one():
-    Lambda = 1.0 # reg
+def coincidence_percentage(a, b):
+    comp = a == b
+    return 100 * sum(map(lambda comp : comp == True, comp)) / comp.shape
 
-    data = loadmat('ex4data1.mat')
-    y = data['y']
-    X = data['X']
-    #print(X.shape, y.shape)
+def neural_training(X, y, weights1, weights2):
+    sigmoids = forward(X, weights1, weights2)[4]
+    predictions = predict(sigmoids)
+    return coincidence_percentage(predictions, y)
 
-    weights = loadmat('ex4weights.mat')
-    theta1, theta2 = weights['Theta1'], weights['Theta2']
-    # Theta1 es de dimension 25 x 401
-    # Theta2 es de dimension 10 x 26
+#weights = loadmat('ex4weights.mat')
+#theta1, theta2 = weights['Theta1'], weights['Theta2']
+#params_rn = np.concatenate([theta1.reshape(-1), theta2.reshape(-1)])
 
-    num_etiquetas = 10 # 0 es 10
-    num_entradas = 400
-    num_ocultas = 25
+data = loadmat('ex4data1.mat')
+X, y = data['X'], data['y'].reshape(-1)
+m = X.shape[0]
+
+num_etiquetas = 10
+num_entradas = 400
+num_ocultas = 25
+Lambda = 1.0
+
+show_selection(X)
+theta1 = randomize_weights(num_entradas, num_ocultas)
+theta2 = randomize_weights(num_ocultas, num_etiquetas)
+params_rn = np.concatenate([theta1.reshape(-1), theta2.reshape(-1)])
+
+theta_opt = optimize(backprop, params_rn, num_entradas, num_ocultas, num_etiquetas, X, y, Lambda)
+theta1_opt = np.reshape(theta_opt[:num_ocultas * (num_entradas + 1)], (num_ocultas, (num_entradas + 1)))
+theta2_opt = np.reshape(theta_opt[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1 )))
     
-    m = np.shape(X)[0]
-    X_ones = np.hstack([np.ones([m, 1]), X])
-    n = np.shape(X_ones)[1]
-    Y_ravel = np.ravel(y)
-
-    Y_oh = y_onehot(Y_ravel, X, num_etiquetas)
-
-    params_rn = np.concatenate((np.ravel(theta1), np.ravel(theta2)))
-    #print(params_rn.shape)
-
-    backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X_ones, Y_oh, Lambda)
-
-
-
-part_one()
+percentage = neural_training(X, y, theta1_opt, theta2_opt)
+print("Neural network success rate: ", percentage)
