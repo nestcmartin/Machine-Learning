@@ -74,8 +74,8 @@ def plot_frontier_3D(Theta, X, Y):
 def accuracy_percentage(Theta, X, Y):
 
 	Z = g(X@Theta)
-	pos = np.where(Y == 1);
-	neg = np.where(Y == 0);
+	pos = np.where(Y == 1)
+	neg = np.where(Y == 0)
 	z_pos = np.where(Z >= 0.5)
 	z_neg = np.where(Z < 0.5)
 
