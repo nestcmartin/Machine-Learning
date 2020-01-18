@@ -18,8 +18,11 @@ def plot_data(X, y, title):
     neg = y == 0
 
     plt.title(title)
-    plt.plot(X[:,0][pos], X[:,1][pos], "k+") # Positivos, color = black, shape = +
-    plt.plot(X[:,0][neg], X[:,1][neg], "yo") # Negativos, color = yellow, shape = o
+    plt.plot(X[:,0][pos], X[:,1][pos], "k+", label='Valores positivos') # Positivos, color = black, shape = +
+    plt.plot(X[:,0][neg], X[:,1][neg], "yo", label='Valores negativos') # Negativos, color = yellow, shape = o
+
+    legend = plt.legend(loc='upper left')
+
     plt.show()
 
 def visualizeBoundryLinear(X, y, model, title):
@@ -146,12 +149,15 @@ def first_dataset():
     y = data1['y']
     Y_ravel = y.ravel()
     
+    # Plot data
+    plot_data(X, Y_ravel, "Data1")
+
     C = 1
     model = svmLinearTrain(X, Y_ravel, C, 1e-3, -1)
-    visualizeBoundryLinear(X, Y_ravel, model, "(Data1 - Linear) Frontera con C = 1")
+    visualizeBoundryLinear(X, Y_ravel, model, "(Data1 - Lineal) Frontera con C = 1")
     C = 100
     model = svmLinearTrain(X, Y_ravel, C, 1e-3, -1)
-    visualizeBoundryLinear(X, Y_ravel, model, "(Data1 - Linear) Frontera con C = 100")
+    visualizeBoundryLinear(X, Y_ravel, model, "(Data1 - Lineal) Frontera con C = 100")
 
 def second_dataset():
     # Segundo dataset:
@@ -159,6 +165,9 @@ def second_dataset():
     X = data2['X']
     y = data2['y']
     Y_ravel = y.ravel()
+
+    # Plot data
+    plot_data(X, Y_ravel, "Data2")
 
     C = 1
     sigma = 0.1
@@ -173,9 +182,12 @@ def third_dataset():
     yval = data3['yval']
     Y_ravel = y.ravel()
 
+    # Plot data
+    plot_data(X, Y_ravel, "Data3")
+
     predictions = dict()
-    for C in [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30]:
-        for sigma in [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30]:
+    for C in [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30**2]:
+        for sigma in [0.01, 0.03, 0.1, 0.3, 1, 3, 10, 30**2]:
             model = svmGaussianTrain(X, Y_ravel, C, 1e-5, -1, sigma)
             prediction = model.predict(gaussianKernel(Xval, X, sigma))
             predictions[(C, sigma)] = np.mean((prediction != yval).astype(int))
@@ -220,14 +232,15 @@ def part_two():
 
     vocab_dict = getVocabDict() # 1899 elementos
     email_word_indices = tokenList2wordIndices(email_token_list, vocab_dict)
+    print(email_word_indices)
 
     email_attributes = np.zeros((1899,), dtype=int)
 
     for idx in email_word_indices:
         email_attributes[idx] = 1
 
-    print("email 'spam/0001.txt' atributtes: ")
-    print(email_attributes)
+    # print("email 'spam/0001.txt' atributtes: ")
+    # print(email_attributes)
 
 # ------------------------------    
 
