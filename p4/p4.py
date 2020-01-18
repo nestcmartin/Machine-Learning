@@ -1,154 +1,109 @@
+import random
 import numpy as np
 import scipy.optimize as opt
 from scipy.io import loadmat
-from sklearn.preprocessing import PolynomialFeatures
-
-from matplotlib import cm
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib.ticker import LinearLocator, FormatStrFormatter
 
-import random
+import displayData as dd
+import checkNNGradients as nn
 
-# Display functions ------------
+def show_selection(X):
+    sel = np.random.permutation(m)
+    sel = sel[:100]
+    dd.displayData(X[sel, :])
+    plt.show()
 
-def displayData(X):
-    num_plots = int(np.size(X, 0)**.5)
-    fig, ax = plt.subplots(num_plots, num_plots, sharex=True, sharey=True)
-    plt.subplots_adjust(left=0, wspace=0, hspace=0)
-    img_num = 0
+def convert_y(y, num_etiquetas):
+    Y = np.empty((num_etiquetas, y.shape[0]), dtype=bool)
+    for i in range(num_etiquetas):
+        Y[i, :] = ((y[:, 0] + num_etiquetas - 1) % num_etiquetas == i)    
+    Y = Y * 1
+    return Y.T
 
-    for i in range(num_plots):
-        for j in range(num_plots):
-            # Convert column vector into 20x20 pixel matrix
-            # transpose
-            img = X[img_num, :].reshape(20, 20).T
-            ax[i][j].imshow(img, cmap='Greys')
-            ax[i][j].set_axis_off()
-            img_num += 1
-
-    return (fig, ax)
-
-def displayImage(im):
-    fig2, ax2 = plt.subplots()
-    image = im.reshape(20, 20).T
-    ax2.imshow(image, cmap='gray')
-    return (fig2, ax2)
-
-# ------------------------------
-
-# sigmoide de Z
-def g(Z):
+def sigmoid(Z):
     return 1 / (1 + np.exp(-Z))
 
-# derivada del sigmoide de Z
-def derivative_g(Z):
-    return np.multiply(g(Z), (1 - g(Z)))
-    
-def random_weights(L_in, L_out):
-    weights = np.zeros((L_out, 1 + L_in))
+def sigmoid_derivative(Z):
+    return sigmoid(Z) * (1 - sigmoid(Z))
 
-    for i in range(L_out):
-        for j in range(1 + L_in):
-            weights[i, j] = random.uniform(-0.12, 0.12)
+def feed_forward(X, theta1, theta2):
+    a1 = np.hstack([np.ones([X.shape[0], 1]), X])
+    z2 = np.dot(a1, theta1.T)
+    a2 = np.hstack([np.ones([X.shape[0], 1]), sigmoid(z2)])
+    z3 = np.dot(a2, theta2.T)
+    a3 = sigmoid(z3)
+    return a1, z2, a2, z3, a3
 
-    return weights
-
-def forward(theta1, theta2, X):
-    m = X.shape[0]
-
-    z2 = X @ theta1.T # a1 = X
-    a2 = g(z2)
-    a2_ones = np.hstack([np.ones([m, 1]), a2])
-    z3 = a2_ones @ theta2.T
-    a3 = g(z3) # a3 = ht(X)
-    return X, z2, a2_ones, z3, a3 
-
-def y_onehot(y, X, num_etiquetas):
-    m = X.shape[0]
-    y = y - 1
-
-    y_onehot = np.zeros((m, num_etiquetas))
-    for i in range(m):
-        y_onehot[i][y[i]] = 1
-
-    return y_onehot
-
-# coste sin regularizar
-def cost(theta1, theta2, num_etiquetas, X, y, h):
-    m = X.shape[0]
-    X = np.matrix(X)
-    y = np.matrix(y)
-
-    cost = (np.multiply(-y, np.log(h)) - np.multiply((1 - y), np.log(1 - h))).sum()
-    return cost / m
-
-# coste regularizado
-def reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg):
-    m = X.shape[0]
-
-    c_reg = cost(theta1, theta2, num_etiquetas, X, y, h) + ((float(reg) / (2 * m)) 
-            * (np.sum(np.power(theta1[:, 1:], 2)) + np.sum(np.power(theta2[:, 1:], 2)))) 
-    
-    return c_reg
-
-# deltas # TODO: QUE FUNCIONE 
-def deltas(theta1, theta2, a1, z2, a2, z3, h, y):
-    m = a1.shape[0] # a1 = X
-    delta1, delta2 = np.zeros(theta1.shape), np.zeros(theta2.shape)
-    z2_ones =  np.hstack([np.ones([m, 1]), z2])
-
-    d3 = h - y
-    aux = theta2.T @ d3.T
-    d2 = aux @ derivative_g(z2_ones)
-    
-    print (a1.shape)
-    delta1 += d2.T @ a1
-    delta2 += d3.T @ a2
-
-    return delta1 / m, delta2 / m
-
-# backprop devuelve el coste y el gradiente de una red neuronal de dos capas
-def backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X, y, reg):
+def back_propagation(params_rn, num_entradas, num_ocultas, num_etiquetas, X, Y, Lambda):
+    # Unroll thetas (neural network params)
     theta1 = np.reshape(params_rn[:num_ocultas * (num_entradas + 1)], (num_ocultas, (num_entradas + 1)))
-    theta2 = np.reshape(params_rn[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1 )))
+    theta2 = np.reshape(params_rn[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1)))
 
-    a1, z2, a2, z3, h = forward(theta1, theta2, X)
+    # Forward propogation (feed forward)
+    A1, Z2, A2, Z3, A3 = feed_forward(X, theta1, theta2)
 
-    c = reg_cost(theta1, theta2, num_etiquetas, X, y, h, reg)
-    print(c)
+    # Cost function (without reg term)
+    cost_unreg_term = (-Y * np.log(A3) - (1 - Y) * np.log(1 - A3)).sum() / m
 
-    delta1, delta2 = deltas(theta1, theta2, a1, z2, a2, z3, h, y)
+    # Cost function (with reg term)
+    cost_reg_term = (Lambda / (2 * m)) * (np.sum(theta1[:, 1:] ** 2) + np.sum(theta2[:, 1:] ** 2))
+    cost = cost_unreg_term + cost_reg_term
 
-def part_one():
-    Lambda = 1.0 # reg
+    # Numerical gradient (without reg term)
+    Theta1_grad = np.zeros(np.shape(theta1))
+    Theta2_grad = np.zeros(np.shape(theta2))
+    D3 = A3 - Y
+    D2 = np.dot(D3, theta2)
+    D2 = D2 * (np.hstack([np.ones([Z2.shape[0], 1]), sigmoid_derivative(Z2)]))
+    D2 = D2[:, 1:]
+    Theta1_grad = Theta1_grad + np.dot(A1.T, D2).T
+    Theta2_grad = Theta2_grad + np.dot(A2.T, D3).T
 
-    data = loadmat('ex4data1.mat')
-    y = data['y']
-    X = data['X']
-    #print(X.shape, y.shape)
+    # Numerical gradient (with reg term)
+    Theta1_grad = Theta1_grad * (1 / m)
+    Theta2_grad = Theta2_grad * (1 / m)
+    Theta1_grad[:, 1:] = Theta1_grad[:, 1:] + (Lambda / m) * theta1[:, 1:]
+    Theta2_grad[:, 1:] = Theta2_grad[:, 1:] + (Lambda / m) * theta2[:, 1:]
+    grad = np.concatenate((np.ravel(Theta1_grad), np.ravel(Theta2_grad)))
 
-    weights = loadmat('ex4weights.mat')
-    theta1, theta2 = weights['Theta1'], weights['Theta2']
-    # Theta1 es de dimension 25 x 401
-    # Theta2 es de dimension 10 x 26
+    return (cost, grad)
 
-    num_etiquetas = 10 # 0 es 10
-    num_entradas = 400
-    num_ocultas = 25
-    
-    m = np.shape(X)[0]
-    X_ones = np.hstack([np.ones([m, 1]), X])
-    n = np.shape(X_ones)[1]
-    Y_ravel = np.ravel(y)
+def randomize_weights(L_in, L_out):
+    epsilon = 0.12
+    return np.random.uniform(-epsilon, epsilon, (L_out, 1 + L_in))
 
-    Y_oh = y_onehot(Y_ravel, X, num_etiquetas)
+def optimize(backprop, params_rn, num_entradas, num_ocultas, num_etiquetas, X, Y, Lambda, num_iter):
+    result = opt.minimize(fun=backprop, x0=params_rn,
+    args=(num_entradas, num_ocultas, num_etiquetas, X, Y, Lambda),
+    method='TNC', jac=True, options={'maxiter': num_iter})
+    return result.x
 
-    params_rn = np.concatenate((np.ravel(theta1), np.ravel(theta2)))
-    #print(params_rn.shape)
+def neural_training(y, out):
+    max_i = np.argmax(out, axis = 1) + 1
+    control = (y[:, 0] == max_i) 
+    return 100 * np.size(np.where(control == True)) / y.shape[0]
 
-    backprop(params_rn, num_entradas, num_ocultas, num_etiquetas, X_ones, Y_oh, Lambda)
+data = loadmat('ex4data1.mat')
+weights = loadmat('ex4weights.mat')
+X, y = data['X'], data['y']
+theta1, theta2 = weights['Theta1'], weights['Theta2']
 
+Lambda = 1.0
+num_iter = 70
+m = X.shape[0]
+num_entradas = 400
+num_ocultas = 25
+num_etiquetas = 10
 
+show_selection(X)
+theta1 = randomize_weights(theta1.shape[1] - 1, theta1.shape[0])
+theta2 = randomize_weights(theta2.shape[1] - 1, theta2.shape[0])
+params_rn = np.concatenate([theta1.reshape(-1), theta2.reshape(-1)])
+theta_opt = optimize(back_propagation, params_rn, num_entradas, num_ocultas, num_etiquetas, X, convert_y(y, num_etiquetas), Lambda, num_iter)
+theta1_opt = np.reshape(theta_opt[:num_ocultas * (num_entradas + 1)], (num_ocultas, (num_entradas + 1)))
+theta2_opt = np.reshape(theta_opt[num_ocultas * (num_entradas + 1):], (num_etiquetas, (num_ocultas + 1 )))  
+percentage = neural_training(y, feed_forward(X, theta1_opt, theta2_opt)[4])
 
-part_one()
+print("Neural network success rate: {}%".format(percentage))
+print(nn.checkNNGradients(back_propagation, Lambda))
+# TODO: probar con distintas configuraciones para Lambda y num_iter
