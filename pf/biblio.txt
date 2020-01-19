@@ -1,0 +1,8 @@
+Heart Disease UCI
+1. The ultimate guide to this dataset! - https://www.kaggle.com/ronitf/heart-disease-uci/discussion/105877
+
+2. What Causes Heart Disease? Explaining the Model - https://www.kaggle.com/tentotheminus9/what-causes-heart-disease-explaining-the-model
+
+3. Heart Disease - Classifications (Machine Learning) - https://www.kaggle.com/cdabakoglu/heart-disease-classifications-machine-learning
+
+4. Heart Disease Comparison of 20 models - https://www.kaggle.com/vbmokin/heart-disease-comparison-of-20-models/notebook
