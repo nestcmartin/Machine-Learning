@@ -26,7 +26,7 @@ def plot_frontier(Theta, X, Y):
 	h = h.reshape(xx1.shape)
 
 	plt.contour(xx1, xx2, h, [0.5], linewidths=1, colors='b')
-	plt.legend((pts_pos, pts_neg), ('Admitted', 'Not Admitted'))
+	plt.legend((pts_pos, pts_neg), ('Enfermo', 'No enfermo'))
 	plt.show()
 
 def plot_frontier_3D(Theta, X, Y):
