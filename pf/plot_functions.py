@@ -1,6 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# Sigmoide
+def g(z):
+    return 1 / (1 + np.exp(-z))
+
 def plot_frontier(Theta, X, Y):
 	plt.figure()
 
