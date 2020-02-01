@@ -150,6 +150,7 @@ def first_dataset():
     Y_ravel = y.ravel()
     
     # Plot data
+    print(X.shape)
     plot_data(X, Y_ravel, "Data1")
 
     C = 1
@@ -202,10 +203,10 @@ def part_one():
     first_dataset()
 
     print("Segundo dataset (ex6data2.mat). Puede tardar unos minutos...")
-    second_dataset()
+    #second_dataset()
 
     print("Tercer dataset (ex6data3.mat). Puede tardar unos minutos...")
-    third_dataset()
+    #third_dataset()
 
 # ------------------------------
 
@@ -244,4 +245,4 @@ def part_two():
 
 # ------------------------------    
 
-part_two()
+part_one()
